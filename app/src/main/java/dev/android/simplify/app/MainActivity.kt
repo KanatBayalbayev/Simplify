@@ -1,4 +1,4 @@
-package dev.android.simplify
+package dev.android.simplify.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
