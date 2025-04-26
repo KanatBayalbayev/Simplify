@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -28,6 +29,7 @@ import dev.android.simplify.presentation.auth.common.AuthButton
 import dev.android.simplify.presentation.auth.common.EmailField
 import dev.android.simplify.presentation.auth.common.ErrorText
 import dev.android.simplify.presentation.auth.common.PasswordField
+import dev.android.simplify.presentation.auth.common.RememberMeCheckbox
 import dev.android.simplify.presentation.auth.common.mapAuthErrorToMessage
 import org.koin.androidx.compose.koinViewModel
 
@@ -40,6 +42,12 @@ fun LoginScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
+
+    DisposableEffect(key1 = Unit) {
+        onDispose {
+            viewModel.resetState()
+        }
+    }
 
     LaunchedEffect(uiState.isAuthenticated) {
         if (uiState.isAuthenticated) {
@@ -100,6 +108,12 @@ fun LoginScreen(
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
+
+                // Remember Me checkbox
+                RememberMeCheckbox(
+                    checked = uiState.rememberMe,
+                    onCheckedChange = viewModel::onRememberMeChanged
+                )
 
                 // Forgot password
                 TextButton(

@@ -50,6 +50,7 @@ dependencies {
 
     implementation(libs.datastore.preferences)
 
+    implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)

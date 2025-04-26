@@ -17,4 +17,12 @@ interface AuthRepository {
     suspend fun sendPasswordResetEmail(email: String): AuthResult<Unit>
 
     suspend fun signOut(): AuthResult<Unit>
+
+    fun saveCredentials(email: String, password: String)
+
+    fun getSavedCredentials(): Pair<String?, String?>
+
+    fun hasSavedCredentials(): Boolean
+
+    fun clearCredentials()
 }

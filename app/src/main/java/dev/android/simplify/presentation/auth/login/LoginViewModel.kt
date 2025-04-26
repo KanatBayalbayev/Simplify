@@ -3,8 +3,12 @@ package dev.android.simplify.presentation.auth.login
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.android.simplify.domain.model.AuthResult
+import dev.android.simplify.domain.usecase.ClearCredentialsUseCase
 import dev.android.simplify.domain.usecase.GetCurrentUserUseCase
+import dev.android.simplify.domain.usecase.GetSavedCredentialsUseCase
+import dev.android.simplify.domain.usecase.HasSavedCredentialsUseCase
 import dev.android.simplify.domain.usecase.IsUserAuthenticatedUseCase
+import dev.android.simplify.domain.usecase.SaveCredentialsUseCase
 import dev.android.simplify.domain.usecase.SignInUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,8 +18,11 @@ import kotlinx.coroutines.launch
 
 class LoginViewModel(
     private val signInUseCase: SignInUseCase,
-    private val getCurrentUserUseCase: GetCurrentUserUseCase,
-    private val isUserAuthenticatedUseCase: IsUserAuthenticatedUseCase
+    private val isUserAuthenticatedUseCase: IsUserAuthenticatedUseCase,
+    private val saveCredentialsUseCase: SaveCredentialsUseCase,
+    private val getSavedCredentialsUseCase: GetSavedCredentialsUseCase,
+    private val hasSavedCredentialsUseCase: HasSavedCredentialsUseCase,
+    private val clearCredentialsUseCase: ClearCredentialsUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -23,11 +30,25 @@ class LoginViewModel(
 
     init {
         checkAuthState()
+        loadSavedCredentials()
     }
 
     private fun checkAuthState() {
         if (isUserAuthenticatedUseCase()) {
             _uiState.update { it.copy(isAuthenticated = true) }
+        }
+    }
+
+    private fun loadSavedCredentials() {
+        if (hasSavedCredentialsUseCase()) {
+            val (savedEmail, savedPassword) = getSavedCredentialsUseCase()
+            _uiState.update {
+                it.copy(
+                    email = savedEmail.orEmpty(),
+                    password = savedPassword.orEmpty(),
+                    rememberMe = true
+                )
+            }
         }
     }
 
@@ -39,6 +60,14 @@ class LoginViewModel(
         _uiState.update { it.copy(password = password, passwordError = null) }
     }
 
+    fun onRememberMeChanged(rememberMe: Boolean) {
+        _uiState.update { it.copy(rememberMe = rememberMe) }
+
+        if (!rememberMe) {
+            clearCredentialsUseCase()
+        }
+    }
+
     fun signIn() {
         if (!validateInputs()) return
 
@@ -47,6 +76,14 @@ class LoginViewModel(
         viewModelScope.launch {
             when (val result = signInUseCase(_uiState.value.email, _uiState.value.password)) {
                 is AuthResult.Success -> {
+                    // Если "запомнить меня" включено, сохраняем учетные данные
+                    if (_uiState.value.rememberMe) {
+                        saveCredentialsUseCase(_uiState.value.email, _uiState.value.password)
+                    } else {
+                        // Иначе удаляем сохраненные учетные данные
+                        clearCredentialsUseCase()
+                    }
+
                     _uiState.update { it.copy(isLoading = false, isAuthenticated = true) }
                 }
                 is AuthResult.Error -> {
@@ -81,14 +118,26 @@ class LoginViewModel(
         return isValid
     }
 
-    fun resetErrors() {
-        _uiState.update { it.copy(error = null, emailError = null, passwordError = null) }
+    fun resetState() {
+        val currentState = _uiState.value
+        if (currentState.rememberMe) {
+            _uiState.update {
+                LoginUiState(
+                    email = currentState.email,
+                    password = currentState.password,
+                    rememberMe = true
+                )
+            }
+        } else {
+            _uiState.update { LoginUiState() }
+        }
     }
 }
 
 data class LoginUiState(
     val email: String = "",
     val password: String = "",
+    val rememberMe: Boolean = false,
     val isLoading: Boolean = false,
     val isAuthenticated: Boolean = false,
     val error: Throwable? = null,

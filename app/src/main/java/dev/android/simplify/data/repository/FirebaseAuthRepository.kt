@@ -7,6 +7,7 @@ import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import dev.android.simplify.data.mapper.toDomainUser
+import dev.android.simplify.data.source.local.CredentialsStorage
 import dev.android.simplify.domain.model.AuthError
 import dev.android.simplify.domain.model.AuthResult
 import dev.android.simplify.domain.model.User
@@ -17,7 +18,8 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
 class FirebaseAuthRepository(
-    private val firebaseAuth: FirebaseAuth
+    private val firebaseAuth: FirebaseAuth,
+    private val credentialsStorage: CredentialsStorage
 ) : AuthRepository {
 
     override fun isUserAuthenticated(): Boolean {
@@ -82,6 +84,24 @@ class FirebaseAuthRepository(
         } catch (e: Exception) {
             AuthResult.Error(AuthError.UnknownError(e.message))
         }
+    }
+
+    override fun saveCredentials(email: String, password: String) {
+        credentialsStorage.saveCredentials(email, password)
+    }
+
+    override fun getSavedCredentials(): Pair<String?, String?> {
+        val email = credentialsStorage.getSavedEmail()
+        val password = credentialsStorage.getSavedPassword()
+        return Pair(email, password)
+    }
+
+    override fun hasSavedCredentials(): Boolean {
+        return credentialsStorage.hasSavedCredentials()
+    }
+
+    override fun clearCredentials() {
+        credentialsStorage.clearCredentials()
     }
 
     private fun mapFirebaseAuthException(exception: Exception): AuthError {

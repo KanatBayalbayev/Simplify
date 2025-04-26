@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import dev.android.simplify.domain.model.AuthResult
 import dev.android.simplify.domain.usecase.SignUpUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -100,13 +99,8 @@ class RegisterViewModel(
         return isValid
     }
 
-    fun resetErrors() {
-        _uiState.update { it.copy(
-            error = null,
-            emailError = null,
-            passwordError = null,
-            passwordConfirmationError = null
-        ) }
+    fun resetState() {
+        _uiState.update { RegisterUiState() }
     }
 }
 

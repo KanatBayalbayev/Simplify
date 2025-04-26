@@ -20,7 +20,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -35,47 +34,6 @@ import dev.android.simplify.presentation.auth.common.ErrorText
 import dev.android.simplify.presentation.auth.common.mapAuthErrorToMessage
 import org.koin.androidx.compose.koinViewModel
 
-@Composable
-private fun SuccessMessage(
-    email: String,
-    onBackToLogin: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp)
-        ) {
-            Text(
-                text = "Email отправлен!",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp)
-            )
-
-            Text(
-                text = "На адрес $email были отправлены инструкции по восстановлению пароля. " +
-                        "Проверьте вашу почту и следуйте указаниям в письме.",
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
-
-            TextButton(
-                onClick = onBackToLogin,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            ) {
-                Text("Вернуться к входу")
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ForgotPasswordScreen(
@@ -85,7 +43,7 @@ fun ForgotPasswordScreen(
     val uiState by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
 
-    DisposableEffect(Unit) {
+    DisposableEffect(key1 = Unit) {
         onDispose {
             viewModel.resetState()
         }
@@ -168,6 +126,47 @@ fun ForgotPasswordScreen(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SuccessMessage(
+    email: String,
+    onBackToLogin: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+        ) {
+            Text(
+                text = "Email отправлен!",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            )
+
+            Text(
+                text = "На адрес $email были отправлены инструкции по восстановлению пароля. " +
+                        "Проверьте вашу почту и следуйте указаниям в письме.",
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = 24.dp)
+            )
+
+            TextButton(
+                onClick = onBackToLogin,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                Text("Вернуться к входу")
             }
         }
     }
