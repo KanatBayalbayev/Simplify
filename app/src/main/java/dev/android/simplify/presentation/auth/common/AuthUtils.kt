@@ -3,6 +3,7 @@ package dev.android.simplify.presentation.auth.common
 import dev.android.simplify.domain.model.AuthError
 
 fun mapAuthErrorToMessage(error: Throwable?): String {
+
     return when (error) {
         is AuthError.InvalidEmail -> "Неверный формат email"
         is AuthError.WeakPassword -> "Пароль слишком слабый. Используйте минимум 6 символов"
