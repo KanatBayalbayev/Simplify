@@ -28,8 +28,11 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -38,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.android.simplify.domain.model.User
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,6 +55,22 @@ fun UserSearchBottomSheet(
     modifier: Modifier = Modifier
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
+
+    // Используем эффект дебаунса для поиска
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.length >= 3) {
+            delay(500) // Добавляем небольшую задержку для предотвращения частых запросов при быстром вводе
+            Log.d("UserSearchBottomSheet", "Выполняем поиск: $searchQuery")
+            searchUsers(searchQuery)
+        }
+    }
+
+    // Очищаем результаты поиска при закрытии диалога
+    DisposableEffect(Unit) {
+        onDispose {
+            searchQuery = ""
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -74,13 +94,7 @@ fun UserSearchBottomSheet(
             // Поле поиска
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = {
-                    searchQuery = it
-                    if (it.length >= 3) {
-                        Log.d("ChatHomeViewModel", "onValueChange: $it")
-                        searchUsers(it)
-                    }
-                },
+                onValueChange = { searchQuery = it },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("Введите email для поиска") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Поиск") },

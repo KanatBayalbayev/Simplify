@@ -3,14 +3,17 @@ package dev.android.simplify.presentation.auth.register
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.android.simplify.domain.model.AuthResult
+import dev.android.simplify.domain.model.User
 import dev.android.simplify.domain.usecase.auth.SignUpUseCase
+import dev.android.simplify.domain.usecase.user.CreateOrUpdateUserProfileUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class RegisterViewModel(
-    private val signUpUseCase: SignUpUseCase
+    private val signUpUseCase: SignUpUseCase,
+    private val createOrUpdateUserProfileUseCase: CreateOrUpdateUserProfileUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RegisterUiState())
@@ -48,6 +51,16 @@ class RegisterViewModel(
         viewModelScope.launch {
             when (val result = signUpUseCase(_uiState.value.email, _uiState.value.password)) {
                 is AuthResult.Success -> {
+                    // После успешной регистрации создаем профиль пользователя
+                    val user = User(
+                        id = result.data.id,
+                        email = result.data.email,
+                        displayName = result.data.email.substringBefore('@')
+                    )
+
+                    // Сохраняем данные пользователя в базу данных
+                    createOrUpdateUserProfileUseCase(user)
+
                     _uiState.update { it.copy(
                         isLoading = false,
                         registrationSuccess = true

@@ -1,10 +1,8 @@
 package dev.android.simplify.presentation.chat.home
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.android.simplify.domain.model.AuthResult
-import dev.android.simplify.domain.model.ChatWithUser
 import dev.android.simplify.domain.model.User
 import dev.android.simplify.domain.usecase.auth.GetCurrentUserUseCase
 import dev.android.simplify.domain.usecase.auth.SignOutUseCase
@@ -73,16 +71,17 @@ class ChatHomeViewModel(
     }
 
     fun searchUsers(query: String) {
-//        val query = _uiState.value.searchQuery.trim()
-        Log.d("ChatHomeViewModel", "Поиск пользователей: $query")
-        if (query.length < 3) return
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.length < 3) {
+            _uiState.update { it.copy(searchResults = emptyList()) }
+            return
+        }
 
         _uiState.update { it.copy(isSearching = true, searchResults = emptyList()) }
 
-
         viewModelScope.launch {
             try {
-                val results = searchUsersByEmailUseCase(query)
+                val results = searchUsersByEmailUseCase(trimmedQuery)
                 _uiState.update { it.copy(isSearching = false, searchResults = results) }
             } catch (e: Exception) {
                 _uiState.update {
