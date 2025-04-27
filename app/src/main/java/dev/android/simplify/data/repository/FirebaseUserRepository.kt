@@ -1,5 +1,6 @@
 package dev.android.simplify.data.repository
 
+import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -66,9 +67,11 @@ class FirebaseUserRepository(
 
     override suspend fun searchUsersByEmail(email: String): List<User> {
         return try {
+            Log.d("ChatHomeViewModel", "searchUsersByEmail: $email")
             val snapshot = usersRef.orderByChild("email").startAt(email).endAt(email + "\uf8ff").get().await()
+            Log.d("ChatHomeViewModel", "snapshot: $snapshot")
             val users = mutableListOf<User>()
-
+            Log.d("ChatHomeViewModel", "users: $users")
             for (childSnapshot in snapshot.children) {
                 val firebaseUserData = childSnapshot.getValue(FirebaseUserData::class.java)
                 firebaseUserData?.let {

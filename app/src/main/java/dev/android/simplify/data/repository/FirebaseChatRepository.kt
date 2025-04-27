@@ -1,7 +1,6 @@
 package dev.android.simplify.data.repository
 
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
@@ -18,9 +17,12 @@ import dev.android.simplify.domain.model.ChatWithUser
 import dev.android.simplify.domain.model.Message
 import dev.android.simplify.domain.model.UserStatus
 import dev.android.simplify.domain.repository.ChatRepository
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.util.Date
 import java.util.UUID
@@ -35,6 +37,7 @@ class FirebaseChatRepository(
     private val usersRef = firebaseDatabase.getReference("users")
     private val userStatusRef = firebaseDatabase.getReference("userStatus")
 
+    @OptIn(DelicateCoroutinesApi::class)
     override fun getUserChats(): Flow<List<ChatWithUser>> = callbackFlow {
         val currentUserId = firebaseAuth.currentUser?.uid ?: run {
             trySend(emptyList())
@@ -55,51 +58,65 @@ class FirebaseChatRepository(
                     }
                 }
 
-                // Получаем дополнительную информацию для каждого чата
-                val chatWithUserList = chatList.mapNotNull { chat ->
-                    // Определяем ID собеседника (другой участник, не текущий пользователь)
-                    val otherUserId = chat.participants.keys.find { it != currentUserId } ?: return@mapNotNull null
+                // Запускаем корутину для асинхронного получения данных
+                kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                    val chatWithUserList = mutableListOf<ChatWithUser>()
 
-                    // Получаем информацию о собеседнике
-                    val otherUserSnapshot = usersRef.child(otherUserId).get()
-                    val otherUser = otherUserSnapshot.await().getValue(FirebaseUserData::class.java)?.toDomainUser()
-                        ?: return@mapNotNull null
+                    // Обрабатываем каждый чат последовательно
+                    for (chat in chatList) {
+                        try {
+                            // Определяем ID собеседника (другой участник, не текущий пользователь)
+                            val otherUserId = chat.participants.keys.find { it != currentUserId } ?: continue
 
-                    // Получаем информацию о последнем сообщении
-                    val lastMessageSnapshot = messagesRef.child(chat.lastMessageId).get()
-                    val lastMessage = lastMessageSnapshot.await().getValue(FirebaseMessage::class.java)
+                            // Получаем информацию о собеседнике
+                            val otherUserSnapshot = usersRef.child(otherUserId).get().await()
+                            val otherUser = otherUserSnapshot.getValue(FirebaseUserData::class.java)?.toDomainUser()
+                                ?: continue
 
-                    // Получаем статус пользователя
-                    val userStatusSnapshot = userStatusRef.child(otherUserId).get()
-                    val userStatus = userStatusSnapshot.await().getValue(FirebaseUserStatus::class.java)?.toDomainUserStatus()
+                            // Получаем информацию о последнем сообщении
+                            val lastMessageSnapshot = messagesRef.child(chat.lastMessageId).get().await()
+                            val lastMessage = lastMessageSnapshot.getValue(FirebaseMessage::class.java)
 
-                    // Считаем количество непрочитанных сообщений
-                    val unreadMessagesSnapshot = messagesRef.orderByChild("chatId").equalTo(chat.id)
-                        .get()
-                    val unreadMessages = unreadMessagesSnapshot.await().children.count { messageSnapshot ->
-                        val message = messageSnapshot.getValue(FirebaseMessage::class.java)
-                        message?.senderId != currentUserId && message?.readBy?.get(currentUserId) != true
+                            // Получаем статус пользователя
+                            val userStatusSnapshot = userStatusRef.child(otherUserId).get().await()
+                            val userStatus = userStatusSnapshot.getValue(FirebaseUserStatus::class.java)?.toDomainUserStatus()
+
+                            // Считаем количество непрочитанных сообщений
+                            val unreadMessagesSnapshot = messagesRef.orderByChild("chatId").equalTo(chat.id)
+                                .get().await()
+                            val unreadMessages = unreadMessagesSnapshot.children.count { messageSnapshot ->
+                                val message = messageSnapshot.getValue(FirebaseMessage::class.java)
+                                message?.senderId != currentUserId && message?.readBy?.get(currentUserId) != true
+                            }
+
+                            // Создаем объект ChatWithUser
+                            val chatWithUser = ChatWithUser(
+                                chat = chat.toDomainChat(lastMessage?.let {
+                                    toDomainMessage(it, currentUserId)
+                                }),
+                                user = otherUser,
+                                lastMessageText = lastMessage?.text ?: "",
+                                lastMessageSentByMe = lastMessage?.senderId == currentUserId,
+                                lastMessageTime = lastMessage?.timestamp ?: chat.updatedAt,
+                                isOnline = userStatus?.isOnline ?: false,
+                                unreadCount = unreadMessages
+                            )
+
+                            chatWithUserList.add(chatWithUser)
+                        } catch (e: Exception) {
+                            // Обработка ошибок для отдельного чата
+                            // Продолжаем обработку других чатов
+                        }
                     }
 
-                    // Создаем объект ChatWithUser
-                    ChatWithUser(
-                        chat = chat.toDomainChat(lastMessage?.let {
-                            toDomainMessage(it, currentUserId)
-                        }),
-                        user = otherUser,
-                        lastMessageText = lastMessage?.text ?: "",
-                        lastMessageSentByMe = lastMessage?.senderId == currentUserId,
-                        lastMessageTime = lastMessage?.timestamp ?: chat.updatedAt,
-                        isOnline = userStatus?.isOnline ?: false,
-                        unreadCount = unreadMessages
-                    )
+                    // Отправляем результат
+                    trySend(chatWithUserList)
                 }
-
-                trySend(chatWithUserList)
             }
 
             override fun onCancelled(error: DatabaseError) {
                 // Ошибка при получении данных
+                trySend(emptyList())
             }
         }
 

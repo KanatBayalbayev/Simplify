@@ -136,7 +136,7 @@ fun ChatHomeScreen(
         UserSearchBottomSheet(
             onDismiss = { viewModel.closeSearchSheet() },
             onUserSelected = { user -> viewModel.createChat(user) },
-            searchUsers = { viewModel.searchUsers() },
+            searchUsers = { viewModel.searchUsers(it) },
             userSearchResults = uiState.searchResults,
             isLoading = uiState.isSearching,
             sheetState = bottomSheetState

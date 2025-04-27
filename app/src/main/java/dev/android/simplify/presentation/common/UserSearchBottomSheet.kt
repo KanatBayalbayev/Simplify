@@ -1,5 +1,6 @@
 package dev.android.simplify.presentation.common
 
+import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -76,6 +77,7 @@ fun UserSearchBottomSheet(
                 onValueChange = {
                     searchQuery = it
                     if (it.length >= 3) {
+                        Log.d("ChatHomeViewModel", "onValueChange: $it")
                         searchUsers(it)
                     }
                 },

@@ -1,7 +1,9 @@
 package dev.android.simplify.presentation.chat.home
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.android.simplify.domain.model.AuthResult
 import dev.android.simplify.domain.model.ChatWithUser
 import dev.android.simplify.domain.model.User
 import dev.android.simplify.domain.usecase.auth.GetCurrentUserUseCase
@@ -15,6 +17,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -33,6 +36,12 @@ class ChatHomeViewModel(
 
     // Получаем текущего пользователя
     val currentUser = getCurrentUserUseCase()
+        .map { authResult ->
+            when (authResult) {
+                is AuthResult.Success -> authResult.data
+                else -> null
+            }
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -63,11 +72,13 @@ class ChatHomeViewModel(
         _uiState.update { it.copy(searchQuery = query) }
     }
 
-    fun searchUsers() {
-        val query = _uiState.value.searchQuery.trim()
+    fun searchUsers(query: String) {
+//        val query = _uiState.value.searchQuery.trim()
+        Log.d("ChatHomeViewModel", "Поиск пользователей: $query")
         if (query.length < 3) return
 
         _uiState.update { it.copy(isSearching = true, searchResults = emptyList()) }
+
 
         viewModelScope.launch {
             try {

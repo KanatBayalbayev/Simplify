@@ -10,6 +10,7 @@ import androidx.navigation.navArgument
 import dev.android.simplify.presentation.auth.forgot_password.ForgotPasswordScreen
 import dev.android.simplify.presentation.auth.login.LoginScreen
 import dev.android.simplify.presentation.auth.register.RegisterScreen
+import dev.android.simplify.presentation.chat.conversation.ChatScreen
 import dev.android.simplify.presentation.chat.home.ChatHomeScreen
 import dev.android.simplify.presentation.home.TemporaryChatHome
 
