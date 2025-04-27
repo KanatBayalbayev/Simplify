@@ -275,18 +275,23 @@ class FirebaseChatRepository(
 
     override suspend fun markMessagesAsRead(chatId: String, userId: String) {
         try {
-            // Получаем все непрочитанные сообщения в этом чате
+            Log.d("markMessagesAsRead", "Отмечаем сообщения в чате $chatId как прочитанные для пользователя $userId")
+            // Получаем все сообщения в этом чате
             val messagesSnapshot = messagesRef.orderByChild("chatId").equalTo(chatId).get().await()
+            var markedCount = 0
 
             // Помечаем каждое непрочитанное сообщение как прочитанное для данного пользователя
             for (messageSnapshot in messagesSnapshot.children) {
                 val firebaseMessage = messageSnapshot.getValue(FirebaseMessage::class.java)
-                if (firebaseMessage != null && firebaseMessage.readBy[userId] != true) {
+                if (firebaseMessage != null && firebaseMessage.senderId != userId && (firebaseMessage.readBy[userId] != true)) {
                     messagesRef.child(firebaseMessage.id).child("readBy").child(userId).setValue(true).await()
+                    markedCount++
                 }
             }
+
+            Log.d("markMessagesAsRead", "Отмечено $markedCount сообщений как прочитанные")
         } catch (e: Exception) {
-            // Обработка ошибок
+            Log.e("markMessagesAsRead", "Ошибка при отметке сообщений как прочитанных", e)
         }
     }
 

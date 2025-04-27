@@ -1,5 +1,6 @@
 package dev.android.simplify.presentation.chat.conversation
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.android.simplify.domain.model.AuthResult
@@ -9,6 +10,7 @@ import dev.android.simplify.domain.usecase.chat.GetChatMessagesUseCase
 import dev.android.simplify.domain.usecase.chat.MarkMessagesAsReadUseCase
 import dev.android.simplify.domain.usecase.chat.SendMessageUseCase
 import dev.android.simplify.domain.usecase.user.GetUserByIdUseCase
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -31,12 +33,24 @@ class ChatViewModel(
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    // Текущий пользователь
+    // В ChatViewModel.kt добавим логирование в определение currentUser:
     val currentUser = getCurrentUserUseCase()
         .map { authResult ->
+            Log.d("markMessagesAsRead", "Получен результат из getCurrentUserUseCase: $authResult")
             when (authResult) {
-                is AuthResult.Success -> authResult.data
-                else -> null
+                is AuthResult.Success -> {
+                    val user = authResult.data
+                    Log.d("markMessagesAsRead", "Преобразовано в пользователя: ${user?.id ?: "null"}")
+                    user
+                }
+                is AuthResult.Loading -> {
+                    Log.d("markMessagesAsRead", "Получено состояние Loading")
+                    null
+                }
+                is AuthResult.Error -> {
+                    Log.e("markMessagesAsRead", "Получена ошибка: ${authResult.exception.message}")
+                    null
+                }
             }
         }
         .stateIn(
@@ -44,6 +58,7 @@ class ChatViewModel(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = null
         )
+
 
     // Сообщения чата
     val messages = getChatMessagesUseCase(chatId)
@@ -57,11 +72,19 @@ class ChatViewModel(
         )
 
     init {
+
+        Log.d("markMessagesAsRead", "Инициализация ChatViewModel для чата $chatId")
+        Log.d("markMessagesAsRead", "Текущее значение currentUser при init: ${currentUser.value?.id ?: "null"}")
         // Загружаем информацию о другом пользователе в чате
         loadOtherUser()
 
         // Отмечаем сообщения как прочитанные при открытии чата
-        markMessagesAsRead()
+        viewModelScope.launch {
+            // Небольшая задержка, чтобы дать Flow время на получение значения
+            delay(300)
+            Log.d("markMessagesAsRead", "После задержки, currentUser: ${currentUser.value?.id ?: "null"}")
+            markMessagesAsRead()
+        }
     }
 
     private fun loadOtherUser() {
@@ -114,13 +137,21 @@ class ChatViewModel(
     }
 
     fun markMessagesAsRead() {
-        val currentUserId = currentUser.value?.id ?: return
+        val currentUserId = currentUser.value?.id ?: run {
+            Log.w("markMessagesAsRead", "Невозможно отметить сообщения как прочитанные: currentUserId is null")
+            return
+        }
+
+        Log.d("markMessagesAsRead", "Отмечаем сообщения как прочитанные в чате $chatId для пользователя $currentUserId")
 
         viewModelScope.launch {
             try {
                 markMessagesAsReadUseCase(chatId, currentUserId)
+                Log.d("markMessagesAsRead", "Сообщения успешно отмечены как прочитанные")
             } catch (e: Exception) {
-                // Можно обработать ошибку при необходимости
+                Log.e("markMessagesAsRead", "Ошибка при отметке сообщений как прочитанных", e)
+                // Можно также обновить UI с информацией об ошибке при необходимости
+                _uiState.update { it.copy(error = "Ошибка при отметке сообщений: ${e.message}") }
             }
         }
     }

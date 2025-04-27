@@ -1,5 +1,6 @@
 package dev.android.simplify.data.repository
 
+import android.util.Log
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
@@ -27,21 +28,33 @@ class FirebaseAuthRepository(
     }
 
     override fun getCurrentUser(): Flow<AuthResult<User?>> = callbackFlow {
+        Log.d("markMessagesAsRead", "Запуск getCurrentUser Flow")
         trySend(AuthResult.Loading)
 
         val authStateListener = FirebaseAuth.AuthStateListener { auth ->
             val user = auth.currentUser
+            Log.d("markMessagesAsRead", "Получен authState callback, пользователь ${user?.uid ?: "null"}")
+
             val result = if (user != null) {
-                AuthResult.Success(user.toDomainUser())
+                val domainUser = user.toDomainUser()
+                Log.d("markMessagesAsRead", "Отправка Success со значением User(id=${domainUser.id}, email=${domainUser.email})")
+                AuthResult.Success(domainUser)
             } else {
+                Log.d("markMessagesAsRead", "Отправка Success(null) - нет авторизованного пользователя")
                 AuthResult.Success(null)
             }
             trySend(result)
         }
 
+        // Сразу проверяем текущее состояние авторизации
+        val currentUser = firebaseAuth.currentUser
+        Log.d("markMessagesAsRead", "Текущее состояние при запуске: пользователь ${currentUser?.uid ?: "null"}")
+
         firebaseAuth.addAuthStateListener(authStateListener)
+        Log.d("markMessagesAsRead", "AuthStateListener добавлен")
 
         awaitClose {
+            Log.d("markMessagesAsRead", "Flow закрывается, удаляем AuthStateListener")
             firebaseAuth.removeAuthStateListener(authStateListener)
         }
     }
