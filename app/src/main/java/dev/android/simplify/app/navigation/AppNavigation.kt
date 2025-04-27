@@ -2,12 +2,15 @@ package dev.android.simplify.app.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import dev.android.simplify.presentation.auth.forgot_password.ForgotPasswordScreen
 import dev.android.simplify.presentation.auth.login.LoginScreen
 import dev.android.simplify.presentation.auth.register.RegisterScreen
+import dev.android.simplify.presentation.chat.home.ChatHomeScreen
 import dev.android.simplify.presentation.home.TemporaryChatHome
 
 @Composable
@@ -59,14 +62,29 @@ fun AppNavigation(
             )
         }
 
+        // Chat screens
         composable(Routes.CHAT_HOME) {
-            // Временная заглушка для домашнего экрана чата
-            // Будет реализована в следующем этапе
-            TemporaryChatHome(
+            ChatHomeScreen(
+                onNavigateToChat = { chatId ->
+                    navController.navigate("${Routes.CHAT}/$chatId")
+                },
                 onLogout = {
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(Routes.CHAT_HOME) { inclusive = true }
                     }
+                }
+            )
+        }
+
+        composable(
+            route = "${Routes.CHAT}/{chatId}",
+            arguments = listOf(navArgument("chatId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val chatId = backStackEntry.arguments?.getString("chatId") ?: ""
+            ChatScreen(
+                chatId = chatId,
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }

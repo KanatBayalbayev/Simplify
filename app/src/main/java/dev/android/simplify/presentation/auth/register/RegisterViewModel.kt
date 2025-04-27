@@ -3,7 +3,7 @@ package dev.android.simplify.presentation.auth.register
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.android.simplify.domain.model.AuthResult
-import dev.android.simplify.domain.usecase.SignUpUseCase
+import dev.android.simplify.domain.usecase.auth.SignUpUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update

@@ -15,7 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import dev.android.simplify.domain.usecase.SignOutUseCase
+import dev.android.simplify.domain.usecase.auth.SignOutUseCase
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 

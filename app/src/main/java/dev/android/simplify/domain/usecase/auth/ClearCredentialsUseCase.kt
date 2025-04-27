@@ -1,4 +1,4 @@
-package dev.android.simplify.domain.usecase
+package dev.android.simplify.domain.usecase.auth
 
 import dev.android.simplify.domain.repository.AuthRepository
 
