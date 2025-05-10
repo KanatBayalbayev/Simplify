@@ -1,5 +1,6 @@
 package dev.android.simplify.presentation.chat.conversation
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,21 +68,19 @@ fun ChatScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
-    // Прокручиваем к последнему сообщению при получении новых сообщений
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
     }
 
-    // Отмечаем сообщения как прочитанные при открытии чата
     LaunchedEffect(Unit) {
         viewModel.markMessagesAsRead()
     }
 
-    // Обработка ошибок
     LaunchedEffect(uiState.error) {
         uiState.error?.let { error ->
+            Log.e("ChatScreen", "Error shown in snackbar: $error")
             scope.launch {
                 snackbarHostState.showSnackbar(error)
                 viewModel.clearError()
@@ -93,12 +92,8 @@ fun ChatScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    // Отображаем имя собеседника, если оно доступно
-                    Text(
-                        text = uiState.otherUser?.displayName
-                            ?: uiState.otherUser?.email
-                            ?: "Чат"
-                    )
+                    // Use the chat title from UI state which now handles self-chat scenarios
+                    Text(text = uiState.chatTitle)
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -109,7 +104,7 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    // Аватар собеседника
+                    // Show avatar (either other user's or current user's in self-chat)
                     uiState.otherUser?.let { user ->
                         UserAvatar(
                             photoUrl = user.photoUrl,
@@ -136,16 +131,19 @@ fun ChatScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Сначала проверяем, загружаются ли сообщения
+            // Check if messages are loading
             if (uiState.isLoading) {
-                // Отображаем скелетон загрузки
+                // Show skeleton loader
                 ChatSkeletonLoader(
                     modifier = Modifier.fillMaxSize()
                 )
             } else if (messages.isEmpty()) {
-                // Отображаем сообщение о пустом чате
+                // Show empty chat message with appropriate text based on chat type
                 Text(
-                    text = "Нет сообщений. Начните общение!",
+                    text = if (uiState.isSelfChat)
+                        "Это ваши заметки. Начните писать!"
+                    else
+                        "Нет сообщений. Начните общение!",
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
@@ -153,29 +151,33 @@ fun ChatScreen(
                         .padding(16.dp)
                 )
             } else {
-                // Отображаем список сообщений
+                // Show message list
                 LazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(16.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(messages) { message ->
+                        // In self-chat, still style messages as if they're from current user
+                        // This keeps the UI consistent with the user's expectations
+                        val isFromCurrentUser = message.senderId == currentUser?.id
                         MessageItem(
                             message = message,
-                            isFromCurrentUser = message.senderId == currentUser?.id,
+                            isFromCurrentUser = isFromCurrentUser,
                             modifier = Modifier.padding(vertical = 4.dp)
                         )
                     }
                 }
             }
 
-            // Отображаем индикатор загрузки, если отправляется сообщение
+            // Show loading indicator when sending a message
             if (uiState.isSending) {
                 LoadingView(message = "Отправка сообщения...")
             }
         }
     }
 }
+
 
 @Composable
 fun MessageItem(
