@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +42,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.android.simplify.domain.model.Message
@@ -218,13 +221,42 @@ fun MessageItem(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Отображаем время отправки сообщения
-        Text(
-            text = formatMessageTime(message.timestamp),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        // Строка со временем и статусом доставки/прочтения
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 4.dp)
-        )
+        ) {
+            // Отображаем время отправки сообщения
+            Text(
+                text = formatMessageTime(message.timestamp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            )
+
+            // Показываем индикаторы статуса только для сообщений текущего пользователя
+            if (isFromCurrentUser) {
+                Spacer(modifier = Modifier.width(4.dp))
+
+                // Показываем индикатор статуса (одна или две галочки)
+                if (message.isRead) {
+                    // Две галочки - сообщение прочитано
+                    Icon(
+                        imageVector = Icons.Default.DoneAll,
+                        contentDescription = "Прочитано",
+                        tint = Color(0xFF4CAF50), // Зеленый цвет
+                        modifier = Modifier.size(16.dp)
+                    )
+                } else {
+                    // Одна галочка - сообщение доставлено, но не прочитано
+                    Icon(
+                        imageVector = Icons.Default.Done,
+                        contentDescription = "Доставлено",
+                        tint = Color(0xFF9E9E9E), // Серый цвет
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
     }
 }
 
