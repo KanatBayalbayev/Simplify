@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -51,6 +52,9 @@ class ChatHomeViewModel(
         .catch { error ->
             _uiState.update { it.copy(error = error.message ?: "Не удалось загрузить чаты") }
         }
+        .onEach {
+            _uiState.update { it.copy(isLoading = false) }
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -58,6 +62,8 @@ class ChatHomeViewModel(
         )
 
     init {
+        _uiState.update { it.copy(isLoading = true) }
+
         // При запуске устанавливаем статус "онлайн"
         viewModelScope.launch {
             currentUser.value?.id?.let { userId ->
@@ -176,6 +182,7 @@ class ChatHomeViewModel(
 data class ChatHomeUiState(
     val searchQuery: String = "",
     val searchResults: List<User> = emptyList(),
+    val isLoading: Boolean = true,
     val isSearching: Boolean = false,
     val isCreatingChat: Boolean = false,
     val isSearchSheetOpen: Boolean = false,

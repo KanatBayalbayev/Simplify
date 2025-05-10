@@ -29,6 +29,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import dev.android.simplify.presentation.chat.components.ChatListItem
+import dev.android.simplify.presentation.common.ChatListSkeletonLoader
 import dev.android.simplify.presentation.common.EmptyStateView
 import dev.android.simplify.presentation.common.LoadingView
 import dev.android.simplify.presentation.common.UserSearchBottomSheet
@@ -107,12 +108,19 @@ fun ChatHomeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (chats.isEmpty()) {
+            // Показываем скелетон во время загрузки
+            if (uiState.isLoading) {
+                ChatListSkeletonLoader(
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else if (chats.isEmpty()) {
+                // Показываем сообщение о пустом списке чатов
                 EmptyStateView(
                     message = "У вас пока нет чатов.\nНажмите + чтобы начать новый разговор.",
                     modifier = Modifier.align(Alignment.Center)
                 )
             } else {
+                // Показываем список чатов
                 LazyColumn {
                     items(chats) { chat ->
                         ChatListItem(

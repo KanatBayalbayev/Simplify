@@ -42,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.android.simplify.domain.model.Message
+import dev.android.simplify.presentation.common.ChatSkeletonLoader
 import dev.android.simplify.presentation.common.LoadingView
 import dev.android.simplify.presentation.common.UserAvatar
 import kotlinx.coroutines.launch
@@ -135,7 +136,13 @@ fun ChatScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (messages.isEmpty()) {
+            // Сначала проверяем, загружаются ли сообщения
+            if (uiState.isLoading) {
+                // Отображаем скелетон загрузки
+                ChatSkeletonLoader(
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else if (messages.isEmpty()) {
                 // Отображаем сообщение о пустом чате
                 Text(
                     text = "Нет сообщений. Начните общение!",
