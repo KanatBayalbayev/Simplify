@@ -46,6 +46,7 @@ dependencies {
     implementation(libs.firebase.storage)
 
     implementation(libs.kotlinx.coroutines)
+    implementation(libs.kotlinx.coroutines.core)
 
     implementation(libs.koin.android)
     implementation(libs.koin.compose)

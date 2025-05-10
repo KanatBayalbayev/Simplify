@@ -1,4 +1,4 @@
-package dev.android.simplify.data.source.local
+package dev.android.simplify.data.source.local.credentials
 
 import android.content.Context
 import android.content.SharedPreferences

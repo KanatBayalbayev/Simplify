@@ -7,12 +7,15 @@ import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import dev.android.simplify.data.mapper.toDomainChat
+import dev.android.simplify.data.mapper.toDomainMessage
 import dev.android.simplify.data.mapper.toDomainUser
 import dev.android.simplify.data.mapper.toDomainUserStatus
+import dev.android.simplify.data.mapper.toEntity
 import dev.android.simplify.data.model.FirebaseChat
 import dev.android.simplify.data.model.FirebaseMessage
 import dev.android.simplify.data.model.FirebaseUserData
 import dev.android.simplify.data.model.FirebaseUserStatus
+import dev.android.simplify.data.source.local.LocalChatDataSource
 import dev.android.simplify.domain.model.Chat
 import dev.android.simplify.domain.model.ChatWithUser
 import dev.android.simplify.domain.model.Message
@@ -25,18 +28,22 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.flow.emitAll
 import java.util.Date
 import java.util.UUID
 
 class FirebaseChatRepository(
     private val firebaseAuth: FirebaseAuth,
-    private val firebaseDatabase: FirebaseDatabase
+    private val firebaseDatabase: FirebaseDatabase,
+    private val localChatDataSource: LocalChatDataSource
 ) : ChatRepository {
 
     private val chatsRef = firebaseDatabase.getReference("chats")
     private val messagesRef = firebaseDatabase.getReference("messages")
     private val usersRef = firebaseDatabase.getReference("users")
     private val userStatusRef = firebaseDatabase.getReference("userStatus")
+
+    private val TAG = "FirebaseChatRepo"
 
     @OptIn(DelicateCoroutinesApi::class)
     override fun getUserChats(): Flow<List<ChatWithUser>> = callbackFlow {
@@ -47,116 +54,151 @@ class FirebaseChatRepository(
             return@callbackFlow
         }
 
+        // Подписываемся на изменения в кэше
+        val cacheJob = launch {
+            localChatDataSource.getAllChatWithUsers().collect { cachedChats ->
+                trySend(cachedChats)
+            }
+        }
+
         val chatsListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val chatList = mutableListOf<FirebaseChat>()
+                try {
+                    val chatList = mutableListOf<FirebaseChat>()
 
-                for (chatSnapshot in snapshot.children) {
-                    val chat = chatSnapshot.getValue(FirebaseChat::class.java)
-                    chat?.let {
-                        // Проверяем, что текущий пользователь является участником чата
-                        if (it.participants.containsKey(currentUserId)) {
-                            chatList.add(it)
-                        }
-                    }
-                }
-
-                kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
-                    val chatWithUserList = mutableListOf<ChatWithUser>()
-
-                    for (chat in chatList) {
-                        try {
-                            val otherUserId = chat.participants.keys.find { it != currentUserId }
-
-                            if (otherUserId == null) {
-                                continue
+                    for (chatSnapshot in snapshot.children) {
+                        val chat = chatSnapshot.getValue(FirebaseChat::class.java)
+                        chat?.let {
+                            // Проверяем, что текущий пользователь является участником чата
+                            if (it.participants.containsKey(currentUserId)) {
+                                chatList.add(it)
                             }
-
-                            val otherUserSnapshot = usersRef.child(otherUserId).get().await()
-                            val otherUserData = otherUserSnapshot.getValue(FirebaseUserData::class.java)
-
-                            if (otherUserData == null) {
-                                continue
-                            }
-
-                            val otherUser = otherUserData.toDomainUser()
-
-                            var lastMessage: FirebaseMessage? = null
-                            if (chat.lastMessageId.isNotEmpty()) {
-                                val lastMessageSnapshot = messagesRef.child(chat.lastMessageId).get().await()
-                                lastMessage = lastMessageSnapshot.getValue(FirebaseMessage::class.java)
-                            }
-
-                            // Получаем статус пользователя
-                            Log.d("FirebaseChatRepo", "Получаем статус пользователя ${otherUserId}")
-                            val userStatusSnapshot = userStatusRef.child(otherUserId).get().await()
-                            val userStatus = userStatusSnapshot.getValue(FirebaseUserStatus::class.java)
-                            Log.d("FirebaseChatRepo", "Статус пользователя: ${userStatus?.isOnline ?: "null"}")
-
-                            // Считаем количество непрочитанных сообщений
-                            Log.d("FirebaseChatRepo", "Получаем непрочитанные сообщения для чата ${chat.id}")
-                            val unreadMessagesSnapshot = messagesRef.orderByChild("chatId").equalTo(chat.id)
-                                .get().await()
-                            val unreadMessages = unreadMessagesSnapshot.children.count { messageSnapshot ->
-                                val message = messageSnapshot.getValue(FirebaseMessage::class.java)
-                                val isUnread = message?.senderId != currentUserId && message?.readBy?.get(currentUserId) != true
-                                if (isUnread) {
-                                    Log.d("FirebaseChatRepo", "Найдено непрочитанное сообщение: ${message?.id}")
-                                }
-                                isUnread
-                            }
-                            Log.d("FirebaseChatRepo", "Количество непрочитанных сообщений: $unreadMessages")
-
-                            // Создаем объект ChatWithUser
-                            val chatWithUser = ChatWithUser(
-                                chat = chat.toDomainChat(lastMessage?.let {
-                                    toDomainMessage(it, currentUserId)
-                                }),
-                                user = otherUser,
-                                lastMessageText = lastMessage?.text ?: "",
-                                lastMessageSentByMe = lastMessage?.senderId == currentUserId,
-                                lastMessageTime = lastMessage?.timestamp ?: chat.updatedAt,
-                                isOnline = userStatus?.isOnline ?: false,
-                                unreadCount = unreadMessages
-                            )
-
-                            Log.d("FirebaseChatRepo", "Добавляем чат с пользователем ${otherUser.email} в список")
-                            chatWithUserList.add(chatWithUser)
-                        } catch (e: Exception) {
-                            Log.e("FirebaseChatRepo", "Ошибка обработки чата ${chat.id}", e)
                         }
                     }
 
-                    // Проверка списка чатов перед отправкой
-                    Log.d("FirebaseChatRepo", "Итоговое количество чатов: ${chatWithUserList.size}")
-                    for (chat in chatWithUserList) {
-                        Log.d("FirebaseChatRepo", "Чат с пользователем: ${chat.user.email}, lastMessage: ${chat.lastMessageText}")
+                    // Обработка и сохранение данных в локальной базе
+                    launch(Dispatchers.IO) {
+                        processChatListAndCache(chatList, currentUserId)
                     }
-
-                    // Отправляем результат
-                    trySend(chatWithUserList)
-                    Log.d("FirebaseChatRepo", "Результат отправлен в поток")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Ошибка при обработке данных чатов", e)
                 }
             }
 
             override fun onCancelled(error: DatabaseError) {
-                Log.e("FirebaseChatRepo", "Ошибка получения чатов: ${error.message}", error.toException())
-                trySend(emptyList())
+                Log.e(TAG, "Ошибка получения чатов: ${error.message}", error.toException())
             }
         }
 
-        // Проверка запроса
+        // Слушаем изменения в чатах пользователя
         val query = chatsRef.orderByChild("participants/$currentUserId").equalTo(true)
-
         query.addValueEventListener(chatsListener)
 
+        // При закрытии flow удаляем слушатель и отменяем все корутины
         awaitClose {
+            cacheJob.cancel()
             query.removeEventListener(chatsListener)
         }
     }
 
+    private suspend fun processChatListAndCache(
+        chatList: List<FirebaseChat>,
+        currentUserId: String
+    ) {
+        try {
+            // Сохраняем сначала сущности чатов
+            val chatEntities = chatList.map { it.toEntity() }
+            localChatDataSource.insertChats(chatEntities)
+
+            val chatWithUsers = mutableListOf<ChatWithUser>()
+
+            for (chat in chatList) {
+                try {
+                    // Находим другого участника чата
+                    val otherUserId = chat.participants.keys.find { it != currentUserId }
+                        ?: continue
+
+                    // Получаем данные о пользователе
+                    val otherUserSnapshot = usersRef.child(otherUserId).get().await()
+                    val otherUserData = otherUserSnapshot.getValue(FirebaseUserData::class.java)
+                        ?: continue
+
+                    // Сохраняем пользователя в БД
+                    localChatDataSource.insertUser(otherUserData.toEntity())
+
+                    val otherUser = otherUserData.toDomainUser()
+
+                    // Получаем последнее сообщение
+                    var lastMessage: FirebaseMessage? = null
+                    if (chat.lastMessageId.isNotEmpty()) {
+                        val lastMessageSnapshot = messagesRef.child(chat.lastMessageId).get().await()
+                        lastMessage = lastMessageSnapshot.getValue(FirebaseMessage::class.java)
+
+                        // Сохраняем сообщение в БД, если оно есть
+                        lastMessage?.let {
+                            localChatDataSource.insertMessage(it.toEntity(currentUserId))
+                        }
+                    }
+
+                    // Получаем статус пользователя
+                    val userStatusSnapshot = userStatusRef.child(otherUserId).get().await()
+                    val userStatus = userStatusSnapshot.getValue(FirebaseUserStatus::class.java)
+
+                    // Считаем количество непрочитанных сообщений
+                    val unreadMessagesSnapshot = messagesRef.orderByChild("chatId").equalTo(chat.id)
+                        .get().await()
+                    val unreadMessages = unreadMessagesSnapshot.children.count { messageSnapshot ->
+                        val message = messageSnapshot.getValue(FirebaseMessage::class.java)
+                        val isUnread = message?.senderId != currentUserId && message?.readBy?.get(currentUserId) != true
+                        isUnread
+                    }
+
+                    // Создаем объект ChatWithUser
+                    val chatWithUser = ChatWithUser(
+                        chat = chat.toDomainChat(lastMessage?.let {
+                            toDomainMessage(it, currentUserId)
+                        }),
+                        user = otherUser,
+                        lastMessageText = lastMessage?.text ?: "",
+                        lastMessageSentByMe = lastMessage?.senderId == currentUserId,
+                        lastMessageTime = lastMessage?.timestamp ?: chat.updatedAt,
+                        isOnline = userStatus?.isOnline ?: false,
+                        unreadCount = unreadMessages
+                    )
+
+                    chatWithUsers.add(chatWithUser)
+
+                    // Сохраняем связанные сущности для ChatWithUser
+                    val (chatWithUserEntity, _) = chatWithUser.toEntity()
+                    localChatDataSource.insertChatWithUser(chatWithUserEntity)
+
+                } catch (e: Exception) {
+                    Log.e(TAG, "Ошибка обработки чата ${chat.id}", e)
+                }
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Ошибка при кэшировании чатов", e)
+        }
+    }
+
+
     override suspend fun getChatById(chatId: String): Chat? {
         return try {
+            // Сначала пробуем получить из локального кэша
+            val cachedChat = localChatDataSource.getChatById(chatId)
+
+            if (cachedChat != null) {
+                // Пытаемся получить последнее сообщение из кэша
+                val lastMessageId = cachedChat.lastMessageId
+                val lastMessage = if (lastMessageId.isNotEmpty()) {
+                    localChatDataSource.getMessageById(lastMessageId)?.toDomainMessage()
+                } else null
+
+                return cachedChat.toDomainChat(lastMessage)
+            }
+
+            // Если в кэше нет, обращаемся к Firebase
             val chatSnapshot = chatsRef.child(chatId).get().await()
             val firebaseChat = chatSnapshot.getValue(FirebaseChat::class.java) ?: return null
 
@@ -167,12 +209,18 @@ class FirebaseChatRepository(
 
                 firebaseMessage?.let {
                     val currentUserId = firebaseAuth.currentUser?.uid ?: ""
+                    // Кэшируем сообщение
+                    localChatDataSource.insertMessage(it.toEntity(currentUserId))
                     toDomainMessage(it, currentUserId)
                 }
             } else null
 
+            // Кэшируем чат
+            localChatDataSource.insertChat(firebaseChat.toEntity())
+
             firebaseChat.toDomainChat(lastMessage)
         } catch (e: Exception) {
+            Log.e(TAG, "Ошибка при получении чата по ID", e)
             null
         }
     }
@@ -207,25 +255,38 @@ class FirebaseChatRepository(
             return@callbackFlow
         }
 
+        // Подписываемся на изменения в кэше
+        val cacheJob = launch {
+            localChatDataSource.getMessagesByChatId(chatId).collect { messages ->
+                trySend(messages)
+            }
+        }
+
         val messagesListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val messageList = mutableListOf<Message>()
+                try {
+                    val messageList = mutableListOf<FirebaseMessage>()
 
-                for (messageSnapshot in snapshot.children) {
-                    val firebaseMessage = messageSnapshot.getValue(FirebaseMessage::class.java)
-                    firebaseMessage?.let {
-                        messageList.add(toDomainMessage(it, currentUserId))
+                    for (messageSnapshot in snapshot.children) {
+                        val firebaseMessage = messageSnapshot.getValue(FirebaseMessage::class.java)
+                        firebaseMessage?.let {
+                            messageList.add(it)
+                        }
                     }
+
+                    // Сохраняем сообщения в локальную БД
+                    launch(Dispatchers.IO) {
+                        val messageEntities = messageList.map { it.toEntity(currentUserId) }
+                        localChatDataSource.insertMessages(messageEntities)
+                    }
+
+                } catch (e: Exception) {
+                    Log.e(TAG, "Ошибка при обработке сообщений", e)
                 }
-
-                // Сортируем сообщения по времени
-                messageList.sortBy { it.timestamp }
-
-                trySend(messageList)
             }
 
             override fun onCancelled(error: DatabaseError) {
-                // Ошибка при получении данных
+                Log.e(TAG, "Ошибка получения сообщений: ${error.message}")
             }
         }
 
@@ -234,6 +295,7 @@ class FirebaseChatRepository(
             .addValueEventListener(messagesListener)
 
         awaitClose {
+            cacheJob.cancel()
             messagesRef.removeEventListener(messagesListener)
         }
     }
@@ -354,6 +416,13 @@ class FirebaseChatRepository(
     }
 
     override fun getUnreadMessagesCount(chatId: String, userId: String): Flow<Int> = callbackFlow {
+        // Подписываемся на изменения в кэше
+        val cacheJob = launch {
+            localChatDataSource.getUnreadMessagesCount(chatId, userId).collect { count ->
+                trySend(count)
+            }
+        }
+
         val messagesListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val count = snapshot.children.count { messageSnapshot ->
@@ -365,7 +434,7 @@ class FirebaseChatRepository(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                // Ошибка при получении данных
+                Log.e(TAG, "Ошибка при получении непрочитанных сообщений", error.toException())
             }
         }
 
@@ -373,6 +442,7 @@ class FirebaseChatRepository(
             .addValueEventListener(messagesListener)
 
         awaitClose {
+            cacheJob.cancel()
             messagesRef.removeEventListener(messagesListener)
         }
     }

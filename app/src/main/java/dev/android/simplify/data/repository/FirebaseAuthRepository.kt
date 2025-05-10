@@ -8,7 +8,7 @@ import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import dev.android.simplify.data.mapper.toDomainUser
-import dev.android.simplify.data.source.local.CredentialsStorage
+import dev.android.simplify.data.source.local.credentials.CredentialsStorage
 import dev.android.simplify.domain.model.AuthError
 import dev.android.simplify.domain.model.AuthResult
 import dev.android.simplify.domain.model.User

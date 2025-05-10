@@ -4,5 +4,6 @@ val appModules = listOf(
     firebaseModule,
     dataModule,
     domainModule,
-    presentationModule
+    presentationModule,
+    roomModule
 )
