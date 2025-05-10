@@ -1,9 +1,12 @@
 package dev.android.simplify.presentation.auth.common
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -12,6 +15,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -136,16 +140,18 @@ fun AuthButton(
         onClick = onClick,
         enabled = enabled && !isLoading,
         modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp)
+            .fillMaxWidth(),
+        contentPadding = PaddingValues(16.dp),
     ) {
         if (isLoading) {
             CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.padding(end = 8.dp)
+                modifier = Modifier.size(24.dp),
+                color = MaterialTheme.colorScheme.onPrimary
             )
+        } else {
+            Text(text)
         }
-        Text(text)
+
     }
 }
 
@@ -159,7 +165,6 @@ fun RememberMeCheckbox(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
     ) {
         Checkbox(
             checked = checked,
@@ -170,7 +175,6 @@ fun RememberMeCheckbox(
             text = "Запомнить пароль",
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier
-                .padding(start = 8.dp)
                 .clickable { onCheckedChange(!checked) }
         )
     }
